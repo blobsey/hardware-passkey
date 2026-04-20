@@ -21,14 +21,12 @@ private fun isDeviceAdminEnabled(context: Context): Boolean {
     return dpm.isAdminActive(componentName)
 }
 
-private fun isCredentialProviderEnabled(context: Context): Boolean {
-    return try {
-        val cm = context.getSystemService(android.credentials.CredentialManager::class.java)
-        val componentName = ComponentName(context, PasskeyCredentialProviderService::class.java)
-        cm.isEnabledCredentialProviderService(componentName)
-    } catch (_: Exception) {
-        false
-    }
+private fun isCredentialProviderEnabled(context: Context): Boolean = try {
+    val cm = context.getSystemService(android.credentials.CredentialManager::class.java)
+    val componentName = ComponentName(context, PasskeyCredentialProviderService::class.java)
+    cm.isEnabledCredentialProviderService(componentName)
+} catch (_: Exception) {
+    false
 }
 
 @Composable

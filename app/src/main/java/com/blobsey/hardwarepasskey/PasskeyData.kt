@@ -4,7 +4,7 @@ import org.json.JSONObject
 
 /**
  * Represents the metadata of a Passkey stored in SharedPreferences.
- * 
+ *
  * @property rpId The Relying Party ID (usually the domain name, e.g., "github.com"). Used to match
  *   the credential to the website or app requesting it during the sign-in flow.
  * @property userId The Relying Party's internal user ID, Base64Url encoded. Stored during creation
@@ -35,8 +35,8 @@ data class PasskeyData(
         require(keyAlias.isNotEmpty()) { "keyAlias cannot be empty" }
     }
 
-    fun toJsonString(): String {
-        return JSONObject().apply {
+    fun toJsonString(): String = JSONObject()
+        .apply {
             put("rpId", rpId)
             put("userId", userId)
             put("userName", userName)
@@ -45,7 +45,6 @@ data class PasskeyData(
             put("createdAt", createdAt)
             put("lastUsedAt", lastUsedAt ?: JSONObject.NULL)
         }.toString()
-    }
 
     companion object {
         fun fromJsonString(json: String): PasskeyData {
@@ -57,7 +56,14 @@ data class PasskeyData(
                 userDisplayName = jsonObject.getString("userDisplayName"),
                 keyAlias = jsonObject.getString("keyAlias"),
                 createdAt = jsonObject.getLong("createdAt"),
-                lastUsedAt = if (jsonObject.isNull("lastUsedAt")) null else jsonObject.getLong("lastUsedAt")
+                lastUsedAt = if (jsonObject.isNull(
+                        "lastUsedAt"
+                    )
+                ) {
+                    null
+                } else {
+                    jsonObject.getLong("lastUsedAt")
+                }
             )
         }
     }

@@ -40,19 +40,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
-private fun formatRelativeTime(epochMillis: Long): String {
-    return DateUtils.getRelativeTimeSpanString(
+private fun formatRelativeTime(epochMillis: Long): String = DateUtils
+    .getRelativeTimeSpanString(
         epochMillis,
         System.currentTimeMillis(),
         DateUtils.MINUTE_IN_MILLIS,
         DateUtils.FORMAT_ABBREV_RELATIVE
     ).toString()
-}
 
 private fun loadPasskeys(context: Context): List<PasskeyData> {
-    val prefs = context.getSharedPreferences(
-        WebAuthnCommon.SHARED_PREFS_KEY_PASSKEYS, Context.MODE_PRIVATE
-    )
+    val prefs =
+        context.getSharedPreferences(
+            WebAuthnCommon.SHARED_PREFS_KEY_PASSKEYS,
+            Context.MODE_PRIVATE
+        )
     return prefs.all.entries
         .filter { WebAuthnCommon.isCredentialId(it.key) }
         .mapNotNull { entry ->
@@ -61,15 +62,11 @@ private fun loadPasskeys(context: Context): List<PasskeyData> {
             } catch (_: Exception) {
                 null
             }
-        }
-        .sortedByDescending { it.lastUsedAt ?: it.createdAt }
+        }.sortedByDescending { it.lastUsedAt ?: it.createdAt }
 }
 
 @Composable
-private fun PasskeyCard(
-    passkey: PasskeyData,
-    onDeleted: () -> Unit
-) {
+private fun PasskeyCard(passkey: PasskeyData, onDeleted: () -> Unit) {
     val context = LocalContext.current
 
     // Delete flow: idle → confirm dialog → type-to-confirm dialog
@@ -78,12 +75,14 @@ private fun PasskeyCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
+        colors =
+        CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
         Row(
-            modifier = Modifier
+            modifier =
+            Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -126,10 +125,12 @@ private fun PasskeyCard(
                     )
                 }
                 Text(
-                    text = if (passkey.lastUsedAt != null)
+                    text =
+                    if (passkey.lastUsedAt != null) {
                         "Last used: ${formatRelativeTime(passkey.lastUsedAt)}"
-                    else
-                        "Never used",
+                    } else {
+                        "Never used"
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -160,9 +161,9 @@ private fun PasskeyCard(
             text = {
                 Text(
                     "You are about to delete the passkey for " +
-                            "\"${passkey.userName}\" on ${passkey.rpId}.\n\n" +
-                            "This action is permanent and cannot be undone. " +
-                            "You will lose access to this account unless you have another sign-in method."
+                        "\"${passkey.userName}\" on ${passkey.rpId}.\n\n" +
+                        "This action is permanent and cannot be undone. " +
+                        "You will lose access to this account unless you have another sign-in method."
                 )
             },
             confirmButton = {
@@ -171,7 +172,8 @@ private fun PasskeyCard(
                         showConfirmDialog = false
                         showTypeToConfirmDialog = true
                     },
-                    colors = ButtonDefaults.buttonColors(
+                    colors =
+                    ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error
                     )
                 ) {
@@ -229,7 +231,8 @@ private fun PasskeyCard(
                         onDeleted()
                     },
                     enabled = matches,
-                    colors = ButtonDefaults.buttonColors(
+                    colors =
+                    ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error
                     )
                 ) {
@@ -261,13 +264,15 @@ fun PasskeyListScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    val passkeys: List<PasskeyData> = remember(refreshKey, tick) {
-        loadPasskeys(context)
-    }
+    val passkeys: List<PasskeyData> =
+        remember(refreshKey, tick) {
+            loadPasskeys(context)
+        }
 
     if (passkeys.isEmpty()) {
         Column(
-            modifier = modifier
+            modifier =
+            modifier
                 .fillMaxSize()
                 .padding(24.dp),
             verticalArrangement = Arrangement.Center,
@@ -287,7 +292,8 @@ fun PasskeyListScreen(modifier: Modifier = Modifier) {
         }
     } else {
         LazyColumn(
-            modifier = modifier
+            modifier =
+            modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)

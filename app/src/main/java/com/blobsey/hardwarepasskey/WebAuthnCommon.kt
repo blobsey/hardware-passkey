@@ -42,11 +42,13 @@ object WebAuthnCommon {
 
     // WebAuthn Authenticator Data flags
     // Ref: https://www.w3.org/TR/webauthn-2/#authdata-flags
-    const val AUTH_DATA_FLAG_UP = 0x01  // User Present
-    const val AUTH_DATA_FLAG_UV = 0x04  // User Verified
-    const val AUTH_DATA_FLAG_AT = 0x40  // Attested Credential Data included
+    const val AUTH_DATA_FLAG_UP = 0x01 // User Present
+    const val AUTH_DATA_FLAG_UV = 0x04 // User Verified
+    const val AUTH_DATA_FLAG_AT = 0x40
+
+    // Attested Credential Data included
     @Suppress("unused") // Spec-complete; remove when extension support is added
-    const val AUTH_DATA_FLAG_ED = 0x80  // Extension Data included
+    const val AUTH_DATA_FLAG_ED = 0x80 // Extension Data included
 
     /**
      * Helper class to allow entering of WebAuthn Attestation Credential Data to [buildAuthData]
@@ -55,7 +57,7 @@ object WebAuthnCommon {
     class AttestedCredentialDataParams(
         val credentialId: ByteArray,
         val coseKeyBytes: ByteArray,
-        val aaguid: ByteArray = ByteArray(16),
+        val aaguid: ByteArray = ByteArray(16)
     )
 
     /**
@@ -69,13 +71,15 @@ object WebAuthnCommon {
         rpId: String,
         flags: Int,
         signCount: Int = 0,
-        attestedCredentialData: AttestedCredentialDataParams? = null,
+        attestedCredentialData: AttestedCredentialDataParams? = null
     ): ByteArray {
         // Validations
         val hasAtFlag = (flags and AUTH_DATA_FLAG_AT) != 0
         require(hasAtFlag == (attestedCredentialData != null)) {
             "AT flag and attestedCredentialData must be set together " +
-                    "(flags=0x${flags.toString(16)}, attestedCredentialData=${attestedCredentialData != null})"
+                "(flags=0x${flags.toString(
+                    16
+                )}, attestedCredentialData=${attestedCredentialData != null})"
         }
         attestedCredentialData?.let {
             require(it.aaguid.size == 16) {
@@ -86,22 +90,24 @@ object WebAuthnCommon {
             }
         }
 
-        return ByteArrayOutputStream().also { baos ->
-            DataOutputStream(baos).use { stream ->
-                stream.write(
-                    MessageDigest.getInstance("SHA-256")
-                        .digest(rpId.toByteArray(Charsets.UTF_8))
-                )
-                stream.writeByte(flags)
-                stream.writeInt(signCount)
-                attestedCredentialData?.let { acd ->
-                    stream.write(acd.aaguid)
-                    stream.writeShort(acd.credentialId.size)
-                    stream.write(acd.credentialId)
-                    stream.write(acd.coseKeyBytes)
+        return ByteArrayOutputStream()
+            .also { baos ->
+                DataOutputStream(baos).use { stream ->
+                    stream.write(
+                        MessageDigest
+                            .getInstance("SHA-256")
+                            .digest(rpId.toByteArray(Charsets.UTF_8))
+                    )
+                    stream.writeByte(flags)
+                    stream.writeInt(signCount)
+                    attestedCredentialData?.let { acd ->
+                        stream.write(acd.aaguid)
+                        stream.writeShort(acd.credentialId.size)
+                        stream.write(acd.credentialId)
+                        stream.write(acd.coseKeyBytes)
+                    }
                 }
-            }
-        }.toByteArray()
+            }.toByteArray()
     }
 
     /**
@@ -114,25 +120,21 @@ object WebAuthnCommon {
 
     /**
      * Generates a unique, namespaced Credential ID.
-     * 
-     * The WebAuthn specification considers the Credential ID to be a completely opaque byte array 
+     *
+     * The WebAuthn specification considers the Credential ID to be a completely opaque byte array
      * that identifies the passkey, so it's safe to reuse it for our own purposes (i.e. as a key into
      * SharedPreferences)
      */
-    fun generateCredentialId(): String {
-        return "passkey-${java.util.UUID.randomUUID()}"
-    }
+    fun generateCredentialId(): String = "passkey-${java.util.UUID.randomUUID()}"
 
     /**
      * Checks if a given SharedPreferences key is a Passkey Credential ID.
      */
-    fun isCredentialId(key: String): Boolean {
-        return key.startsWith("passkey-")
-    }
+    fun isCredentialId(key: String): Boolean = key.startsWith("passkey-")
 
     /**
      * Verifies the caller against the trusted allowlist ([R.raw.apps]).
-     * 
+     *
      * @return The origin if trusted and requested by a privileged app, or null if it's a regular trusted app.
      * @throws IllegalStateException If the caller is untrusted.
      * @throws IllegalArgumentException If the JSON allowlist is malformed.
@@ -149,7 +151,12 @@ object WebAuthnCommon {
     fun touchPasskeyLastUsed(context: Context, keyAlias: String) {
         val prefs = context.getSharedPreferences(SHARED_PREFS_KEY_PASSKEYS, MODE_PRIVATE)
         val json = prefs.getString(keyAlias, null) ?: return
-        val data = try { PasskeyData.fromJsonString(json) } catch (_: Exception) { return }
+        val data =
+            try {
+                PasskeyData.fromJsonString(json)
+            } catch (_: Exception) {
+                return
+            }
         val updated = data.copy(lastUsedAt = System.currentTimeMillis())
         prefs.edit { putString(keyAlias, updated.toJsonString()) }
     }
@@ -182,4 +189,3 @@ fun java.math.BigInteger.toBytesPadded(length: Int): ByteArray {
         else -> ByteArray(length - bytes.size) + bytes // Pad with leading zeroes
     }
 }
-

@@ -37,7 +37,8 @@ fun SetupGateScreen(
     val context = LocalContext.current
 
     Column(
-        modifier = modifier
+        modifier =
+        modifier
             .fillMaxSize()
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -62,7 +63,8 @@ fun SetupGateScreen(
                     val pendingIntent = credentialManager.createSettingsPendingIntent()
                     pendingIntent.send()
                 },
-                modifier = Modifier
+                modifier =
+                Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp, bottom = 24.dp)
             ) {
@@ -83,16 +85,18 @@ fun SetupGateScreen(
                 onClick = {
                     val componentName =
                         ComponentName(context, PasskeyDeviceAdminReceiver::class.java)
-                    val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-                        putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, componentName)
-                        putExtra(
-                            DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                            "Enable Device Admin to prevent accidental uninstallation of Hardware Passkey."
-                        )
-                    }
+                    val intent =
+                        Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, componentName)
+                            putExtra(
+                                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                                "Enable Device Admin to prevent accidental uninstallation of Hardware Passkey."
+                            )
+                        }
                     context.startActivity(intent)
                 },
-                modifier = Modifier
+                modifier =
+                Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp)
             ) {
@@ -103,16 +107,23 @@ fun SetupGateScreen(
 }
 
 @Composable
-private fun SetupRequirementRow(satisfiedLabel: String, unsatisfiedLabel: String, satisfied: Boolean) {
+private fun SetupRequirementRow(
+    satisfiedLabel: String,
+    unsatisfiedLabel: String,
+    satisfied: Boolean
+) {
     val tint by animateColorAsState(
-        targetValue = if (satisfied)
+        targetValue =
+        if (satisfied) {
             MaterialTheme.colorScheme.primary
-        else
-            MaterialTheme.colorScheme.error,
+        } else {
+            MaterialTheme.colorScheme.error
+        },
         label = "requirementTint"
     )
     Row(
-        modifier = Modifier
+        modifier =
+        Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
