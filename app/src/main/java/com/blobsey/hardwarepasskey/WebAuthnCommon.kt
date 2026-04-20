@@ -144,6 +144,17 @@ object WebAuthnCommon {
     }
 
     /**
+     * Updates the [PasskeyData.lastUsedAt] timestamp for the given [keyAlias].
+     */
+    fun touchPasskeyLastUsed(context: Context, keyAlias: String) {
+        val prefs = context.getSharedPreferences(SHARED_PREFS_KEY_PASSKEYS, MODE_PRIVATE)
+        val json = prefs.getString(keyAlias, null) ?: return
+        val data = try { PasskeyData.fromJsonString(json) } catch (_: Exception) { return }
+        val updated = data.copy(lastUsedAt = System.currentTimeMillis())
+        prefs.edit { putString(keyAlias, updated.toJsonString()) }
+    }
+
+    /**
      * Deletes a passkey if it exists, both from the AndroidKeyStore and SharedPreferences
      * Doesn't throw errors if the passkey doesn't exist, just logs a warning
      */

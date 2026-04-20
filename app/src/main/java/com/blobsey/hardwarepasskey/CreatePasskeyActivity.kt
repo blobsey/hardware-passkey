@@ -81,7 +81,9 @@ class CreatePasskeyActivity : Activity() {
                 userId = user.getString("id"),
                 userName = user.getString("name"),
                 userDisplayName = user.getString("displayName"),
-                keyAlias = WebAuthnCommon.generateCredentialId()
+                keyAlias = WebAuthnCommon.generateCredentialId(),
+                createdAt = System.currentTimeMillis(),
+                lastUsedAt = null
             )
         } catch (e: Exception) {
             finishWithError("Invalid WebAuthn request: ${e.message}")

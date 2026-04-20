@@ -15,13 +15,17 @@ import org.json.JSONObject
  *   in the Android Credential selector UI.
  * @property keyAlias The alias of the ECDSA KeyPair generated in the Android Keystore. Used during
  *   sign-in to retrieve the private key and cryptographically sign the WebAuthn challenge.
+ * @property createdAt Epoch millis when this passkey was created.
+ * @property lastUsedAt Epoch millis when this passkey was last used, or null if never used.
  */
 data class PasskeyData(
     val rpId: String,
     val userId: String,
     val userName: String,
     val userDisplayName: String,
-    val keyAlias: String
+    val keyAlias: String,
+    val createdAt: Long = System.currentTimeMillis(),
+    val lastUsedAt: Long? = null
 ) {
     init {
         require(rpId.isNotEmpty()) { "rpId cannot be empty" }
@@ -38,6 +42,8 @@ data class PasskeyData(
             put("userName", userName)
             put("userDisplayName", userDisplayName)
             put("keyAlias", keyAlias)
+            put("createdAt", createdAt)
+            put("lastUsedAt", lastUsedAt ?: JSONObject.NULL)
         }.toString()
     }
 
@@ -49,7 +55,9 @@ data class PasskeyData(
                 userId = jsonObject.getString("userId"),
                 userName = jsonObject.getString("userName"),
                 userDisplayName = jsonObject.getString("userDisplayName"),
-                keyAlias = jsonObject.getString("keyAlias")
+                keyAlias = jsonObject.getString("keyAlias"),
+                createdAt = jsonObject.getLong("createdAt"),
+                lastUsedAt = if (jsonObject.isNull("lastUsedAt")) null else jsonObject.getLong("lastUsedAt")
             )
         }
     }

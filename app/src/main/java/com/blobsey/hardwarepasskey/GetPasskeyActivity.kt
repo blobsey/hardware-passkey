@@ -159,6 +159,7 @@ class GetPasskeyActivity : Activity() {
                             resultIntent,
                             GetCredentialResponse(passkeyCredential)
                         )
+                        WebAuthnCommon.touchPasskeyLastUsed(this@GetPasskeyActivity, keyAlias)
                         setResult(RESULT_OK, resultIntent)
                         finish()
                     } catch (e: Exception) {
