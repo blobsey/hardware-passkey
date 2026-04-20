@@ -16,6 +16,7 @@ import androidx.credentials.exceptions.GetCredentialUnknownException
 import androidx.credentials.provider.PendingIntentHandler
 import org.json.JSONObject
 import java.security.KeyStore
+import java.security.PrivateKey
 import java.security.Signature
 import java.security.interfaces.ECPrivateKey
 
@@ -67,16 +68,12 @@ class GetPasskeyActivity : Activity() {
         val signature = try {
             val keyStore = KeyStore.getInstance("AndroidKeyStore")
             keyStore.load(null)
-            val privateKey = keyStore.getKey(keyAlias, null) as? ECPrivateKey ?: run {
-                finishWithError("Private key not found in Keystore")
+            val privateKey = keyStore.getKey(keyAlias, null) as? PrivateKey ?: run {
+                finishWithError("Private key not found in Keystore (alias=$keyAlias)")
                 return
             }
-            Signature.getInstance("SHA256withECDSA").apply {
-                initSign(privateKey)
-            }
-        } catch (e: KeyPermanentlyInvalidatedException) {
-            // Lock screen credential was removed since the key was created.
-            // The passkey is unrecoverable; user must re-register with the RP.
+            Signature.getInstance("SHA256withECDSA").apply { initSign(privateKey) }
+        } catch (_: KeyPermanentlyInvalidatedException) {
             WebAuthnCommon.cleanupPasskey(this, keyAlias)
             finishWithError("Passkey is no longer valid; please re-register with ${passkeyData.rpId}")
             return

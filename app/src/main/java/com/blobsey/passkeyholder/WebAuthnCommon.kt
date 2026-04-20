@@ -52,7 +52,7 @@ object WebAuthnCommon {
      * Helper class to allow entering of WebAuthn Attestation Credential Data to [buildAuthData]
      * Ref: https://www.w3.org/TR/webauthn-2/#sctn-attested-credential-data
      */
-    data class AttestedCredentialDataParams(
+    class AttestedCredentialDataParams(
         val credentialId: ByteArray,
         val coseKeyBytes: ByteArray,
         val aaguid: ByteArray = ByteArray(16),
@@ -155,9 +155,9 @@ object WebAuthnCommon {
                 keyStore.deleteEntry(keyAlias)
             }
         } catch (e: Exception) {
-            Log.w("GetPasskeyActivity", "Failed to delete invalidated key: $keyAlias", e)
+            Log.w("WebAuthnCommon", "Failed to delete keystore entry: $keyAlias", e)
         }
-        context.getSharedPreferences(WebAuthnCommon.SHARED_PREFS_KEY_PASSKEYS, MODE_PRIVATE).edit {
+        context.getSharedPreferences(SHARED_PREFS_KEY_PASSKEYS, MODE_PRIVATE).edit {
             remove(keyAlias)
         }
     }

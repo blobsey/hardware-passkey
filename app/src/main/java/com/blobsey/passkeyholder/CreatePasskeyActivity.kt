@@ -17,6 +17,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.security.KeyPairGenerator
+import java.security.KeyStore
 import java.security.interfaces.ECPublicKey
 
 /**
@@ -95,7 +96,8 @@ class CreatePasskeyActivity : Activity() {
         val excludeCredentials = requestJson.optJSONArray("excludeCredentials")
         if (excludeCredentials != null) {
             for (i in 0 until excludeCredentials.length()) {
-                val id = excludeCredentials.getJSONObject(i).optString("id")
+                val entry = excludeCredentials.optJSONObject(i) ?: continue
+                val id = entry.optString("id")
                 // Our credential IDs are UTF-8 strings. The incoming ID is base64url-encoded bytes.
                 val decoded = try {
                     String(Base64.decode(id, WebAuthnCommon.WEBAUTHN_BASE64_FLAGS), Charsets.UTF_8)
@@ -115,28 +117,6 @@ class CreatePasskeyActivity : Activity() {
                 }
             }
         }
-
-        // Replace any existing passkey for (rpId, userId). Per WebAuthn §5.1.3, a new registration
-        // for the same (rp, user) supersedes the old one.
-        val victims = prefs.all.mapNotNull { (key, value) ->
-            if (!WebAuthnCommon.isCredentialId(key)) return@mapNotNull null
-            val json = value as? String ?: return@mapNotNull null
-            val data = try {
-                PasskeyData.fromJsonString(json)
-            } catch (_: Exception) {
-                return@mapNotNull null
-            }
-            if (data.rpId == passkeyData.rpId && data.userId == passkeyData.userId) key else null
-        }
-        for (alias in victims) {
-            WebAuthnCommon.cleanupPasskey(this, alias)
-        }
-
-        Toast.makeText(
-            this,
-            "Creating Passkey for ${passkeyData.userName} at ${passkeyData.rpId}",
-            Toast.LENGTH_LONG
-        ).show()
 
         val keyPair = try {
             val kpg = KeyPairGenerator.getInstance(
@@ -253,7 +233,21 @@ class CreatePasskeyActivity : Activity() {
             return
         }
 
-        // Only passkey *metadata* should be stored in SharedPreferences, do NOT include sensitive data!
+        // Replace any existing passkey for (rpId, userId). Per CTAP2 §6.1.2, a new
+        // discoverable credential for the same (rp.id, user.id) supersedes the old one
+        val victims = prefs.all
+            .filter { (key, _) -> WebAuthnCommon.isCredentialId(key) }
+            .mapNotNull { (key, value) ->
+                val json = value as? String ?: return@mapNotNull null
+                val data = runCatching { PasskeyData.fromJsonString(json) }.getOrNull()
+                    ?: return@mapNotNull null
+                if (data.rpId == passkeyData.rpId && data.userId == passkeyData.userId) key else null
+            }
+        for (alias in victims) {
+            WebAuthnCommon.cleanupPasskey(this, alias)
+        }
+
+        // Passkeys are tracked in SharedPreferences by their keyAlias
         prefs.edit { putString(passkeyData.keyAlias, passkeyData.toJsonString()) }
 
         val createResponse = CreatePublicKeyCredentialResponse(responseJson)
