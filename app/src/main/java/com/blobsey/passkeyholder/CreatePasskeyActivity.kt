@@ -22,9 +22,9 @@ import java.security.interfaces.ECPublicKey
 /**
  * Launched by [PasskeyCredentialProviderService] to handle a [CreatePublicKeyCredentialRequest]
  * invoked when user selects this app to save the passkey in the Android system's bottom sheet.
- * Generates an ECDSA key pair in the Android Keystore, saves the passkey metadata to 
+ * Generates an ECDSA key pair in the Android Keystore, saves the passkey metadata to
  * [android.content.SharedPreferences]
- * 
+ *
  * Returns a [CreatePublicKeyCredentialResponse] via [PendingIntentHandler]
  */
 class CreatePasskeyActivity : Activity() {
@@ -74,25 +74,6 @@ class CreatePasskeyActivity : Activity() {
             return
         }
 
-        // Honor excludeCredentials
-        val excludeCredentials = requestJson.optJSONArray("excludeCredentials")
-        if (excludeCredentials != null) {
-            val prefs = getSharedPreferences(WebAuthnCommon.SHARED_PREFS_KEY_PASSKEYS, MODE_PRIVATE)
-            for (i in 0 until excludeCredentials.length()) {
-                val id = excludeCredentials.getJSONObject(i).optString("id")
-                // Our credential IDs are UTF-8 strings. The incoming ID is base64url-encoded bytes.
-                val decoded = try {
-                    String(Base64.decode(id, WebAuthnCommon.WEBAUTHN_BASE64_FLAGS), Charsets.UTF_8)
-                } catch (_: Exception) {
-                    continue
-                }
-                if (prefs.contains(decoded)) {
-                    finishWithError("A passkey matching excludeCredentials already exists")
-                    return
-                }
-            }
-        }
-
         val passkeyData = try {
             val user = requestJson.getJSONObject("user")
             PasskeyData(
@@ -107,8 +88,49 @@ class CreatePasskeyActivity : Activity() {
             return
         }
 
-        // Replace any existing passkey for (rpId, userId)
-        replaceExistingPasskey(passkeyData.rpId, passkeyData.userId)
+        val prefs = getSharedPreferences(WebAuthnCommon.SHARED_PREFS_KEY_PASSKEYS, MODE_PRIVATE)
+
+        // Honor excludeCredentials, scoped to this RP.
+        // If any listed credential already exists for this rpId, reject before we mutate anything.
+        val excludeCredentials = requestJson.optJSONArray("excludeCredentials")
+        if (excludeCredentials != null) {
+            for (i in 0 until excludeCredentials.length()) {
+                val id = excludeCredentials.getJSONObject(i).optString("id")
+                // Our credential IDs are UTF-8 strings. The incoming ID is base64url-encoded bytes.
+                val decoded = try {
+                    String(Base64.decode(id, WebAuthnCommon.WEBAUTHN_BASE64_FLAGS), Charsets.UTF_8)
+                } catch (_: Exception) {
+                    continue
+                }
+                if (!WebAuthnCommon.isCredentialId(decoded)) continue
+                if (!prefs.contains(decoded)) continue
+
+                val existing = prefs.getString(decoded, null)?.let {
+                    try { PasskeyData.fromJsonString(it) } catch (_: Exception) { null }
+                } ?: continue
+
+                if (existing.rpId == passkeyData.rpId) {
+                    finishWithError("A passkey matching excludeCredentials already exists for this RP")
+                    return
+                }
+            }
+        }
+
+        // Replace any existing passkey for (rpId, userId). Per WebAuthn §5.1.3, a new registration
+        // for the same (rp, user) supersedes the old one.
+        val victims = prefs.all.mapNotNull { (key, value) ->
+            if (!WebAuthnCommon.isCredentialId(key)) return@mapNotNull null
+            val json = value as? String ?: return@mapNotNull null
+            val data = try {
+                PasskeyData.fromJsonString(json)
+            } catch (_: Exception) {
+                return@mapNotNull null
+            }
+            if (data.rpId == passkeyData.rpId && data.userId == passkeyData.userId) key else null
+        }
+        for (alias in victims) {
+            WebAuthnCommon.cleanupPasskey(this, alias)
+        }
 
         Toast.makeText(
             this,
@@ -141,13 +163,13 @@ class CreatePasskeyActivity : Activity() {
             finishWithError("Failed to generate hardware keys: ${e.message}")
             return
         }
-        
+
         // Convert Android EC Public Key to COSE format
         val coseKeyBytes = try {
             val ecPublicKey = keyPair.public as ECPublicKey
             val x = ecPublicKey.w.affineX.toBytesPadded(32)
             val y = ecPublicKey.w.affineY.toBytesPadded(32)
-            
+
             // Do not reorder these puts! Keys must be CTAP2 Canonical CBOR encoding
             // Reference: https://www.w3.org/TR/webauthn-2/#sctn-encoded-credPubKey-examples
             val coseKey = CborBuilder()
@@ -195,7 +217,7 @@ class CreatePasskeyActivity : Activity() {
                 .put("authData", authData)
                 .end()
                 .build()
-            
+
             ByteArrayOutputStream().apply {
                 CborEncoder(this).encode(attObj)
             }.toByteArray()
@@ -231,8 +253,7 @@ class CreatePasskeyActivity : Activity() {
             return
         }
 
-        // Only passkey *metadata* should be  stored in SharedPreferences, do NOT include sensitive data!
-        val prefs = getSharedPreferences(WebAuthnCommon.SHARED_PREFS_KEY_PASSKEYS, MODE_PRIVATE)
+        // Only passkey *metadata* should be stored in SharedPreferences, do NOT include sensitive data!
         prefs.edit { putString(passkeyData.keyAlias, passkeyData.toJsonString()) }
 
         val createResponse = CreatePublicKeyCredentialResponse(responseJson)
@@ -240,23 +261,6 @@ class CreatePasskeyActivity : Activity() {
         PendingIntentHandler.setCreateCredentialResponse(resultIntent, createResponse)
         setResult(RESULT_OK, resultIntent)
         finish()
-    }
-
-    private fun replaceExistingPasskey(rpId: String, userId: String) {
-        val prefs = getSharedPreferences(WebAuthnCommon.SHARED_PREFS_KEY_PASSKEYS, MODE_PRIVATE)
-        val victims = prefs.all.mapNotNull { (key, value) ->
-            if (!WebAuthnCommon.isCredentialId(key)) return@mapNotNull null
-            val json = value as? String ?: return@mapNotNull null
-            val data = try {
-                PasskeyData.fromJsonString(json)
-            } catch (_: Exception) {
-                return@mapNotNull null
-            }
-            if (data.rpId == rpId && data.userId == userId) key else null
-        }
-        for (alias in victims) {
-            WebAuthnCommon.cleanupPasskey(this, alias)
-        }
     }
 
     private fun finishWithError(msg: String) {
