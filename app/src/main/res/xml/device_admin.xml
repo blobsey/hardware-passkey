@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <!-- No actual aggressive policies needed.
+             Just being registered as a Device Admin is enough to disable the uninstall button. -->
+    </uses-policies>
+</device-admin>
