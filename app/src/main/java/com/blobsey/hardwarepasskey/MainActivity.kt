@@ -1,8 +1,7 @@
-package com.blobsey.passkeyholder
+package com.blobsey.hardwarepasskey
 
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -21,14 +20,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
-import com.blobsey.passkeyholder.ui.theme.PasskeyHolderTheme
+import com.blobsey.hardwarepasskey.ui.theme.HardwarePasskeyTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            PasskeyHolderTheme {
+            HardwarePasskeyTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     MainScreen(modifier = Modifier.padding(innerPadding))
                 }
@@ -46,7 +45,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Passkey Holder", modifier = Modifier.padding(bottom = 32.dp))
+        Text("Hardware Passkey", modifier = Modifier.padding(bottom = 32.dp))
 
         Button(
             onClick = {

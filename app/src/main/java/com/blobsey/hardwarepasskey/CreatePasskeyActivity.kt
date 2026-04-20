@@ -1,4 +1,4 @@
-package com.blobsey.passkeyholder
+package com.blobsey.hardwarepasskey
 
 import android.app.Activity
 import android.os.Bundle
@@ -17,7 +17,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.security.KeyPairGenerator
-import java.security.KeyStore
 import java.security.interfaces.ECPublicKey
 
 /**

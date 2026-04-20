@@ -1,4 +1,4 @@
-package com.blobsey.passkeyholder.ui.theme
+package com.blobsey.hardwarepasskey.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

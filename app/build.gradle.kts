@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.blobsey.passkeyholder"
+    namespace = "com.blobsey.hardwarepasskey"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -12,7 +12,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.blobsey.passkeyholder"
+        applicationId = "com.blobsey.hardwarepasskey"
         minSdk = 34
         targetSdk = 36
         versionCode = 1

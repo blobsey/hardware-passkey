@@ -12,11 +12,11 @@
         android:manageSpaceActivity=".MainActivity"
         android:allowClearUserData="false"
         android:supportsRtl="true"
-        android:theme="@style/Theme.PasskeyHolder">
+        android:theme="@style/Theme.HardwarePasskey">
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.PasskeyHolder">
+            android:theme="@style/Theme.HardwarePasskey">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

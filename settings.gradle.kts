@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Passkey Holder"
+rootProject.name = "Hardware Passkey"
 include(":app")
  

@@ -1,4 +1,4 @@
-package com.blobsey.passkeyholder
+package com.blobsey.hardwarepasskey
 
 import android.app.Activity
 import android.content.Intent
@@ -18,7 +18,6 @@ import org.json.JSONObject
 import java.security.KeyStore
 import java.security.PrivateKey
 import java.security.Signature
-import java.security.interfaces.ECPrivateKey
 
 /**
  * Launched by [PasskeyCredentialProviderService] to handle a [GetPublicKeyCredentialOption]

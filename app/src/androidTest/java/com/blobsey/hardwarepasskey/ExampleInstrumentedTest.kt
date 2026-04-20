@@ -1,4 +1,4 @@
-package com.blobsey.passkeyholder
+package com.blobsey.hardwarepasskey
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -19,6 +19,6 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.blobsey.passkeyholder", appContext.packageName)
+        assertEquals("com.blobsey.hardwarepasskey", appContext.packageName)
     }
 }

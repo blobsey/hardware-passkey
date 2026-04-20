@@ -1,4 +1,4 @@
-package com.blobsey.passkeyholder
+package com.blobsey.hardwarepasskey
 
 import android.app.PendingIntent
 import android.content.Intent
@@ -34,7 +34,7 @@ class PasskeyCredentialProviderService : CredentialProviderService() {
         )
 
         val createEntry = CreateEntry(
-            accountName = "Passkey Holder",
+            accountName = "Hardware Passkey",
             pendingIntent = pendingIntent
         )
 
