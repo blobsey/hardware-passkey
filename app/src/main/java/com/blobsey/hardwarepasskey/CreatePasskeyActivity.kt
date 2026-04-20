@@ -90,8 +90,8 @@ class CreatePasskeyActivity : Activity() {
 
         val prefs = getSharedPreferences(WebAuthnCommon.SHARED_PREFS_KEY_PASSKEYS, MODE_PRIVATE)
 
-        // Honor excludeCredentials, scoped to this RP.
-        // If any listed credential already exists for this rpId, reject before we mutate anything.
+        // Honor excludeCredentials, scoped to this RP
+        // If any listed credential already exists for this rpId, reject before we mutate anything
         val excludeCredentials = requestJson.optJSONArray("excludeCredentials")
         if (excludeCredentials != null) {
             for (i in 0 until excludeCredentials.length()) {
