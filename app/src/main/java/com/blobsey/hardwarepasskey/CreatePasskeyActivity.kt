@@ -44,18 +44,19 @@ class CreatePasskeyActivity : Activity() {
                 return
             }
 
-        // Verify the caller against the trusted allowlist
-        try {
-            WebAuthnCommon.verifyCaller(this, request.callingAppInfo)
-        } catch (_: IllegalStateException) {
-            finishWithError(
-                "Untrusted caller attempting to claim origin: ${request.callingAppInfo.packageName}"
-            )
-            return
-        } catch (e: IllegalArgumentException) {
-            finishWithError("Failed to parse trusted apps list: ${e.message}")
-            return
-        }
+        // Fetch origin and verify the caller against the trusted allowlist
+        val privilegedOrigin =
+            try {
+                WebAuthnCommon.verifyAndGetOrigin(this, request.callingAppInfo)
+            } catch (_: IllegalStateException) {
+                finishWithError(
+                    "Untrusted caller attempting to claim origin: ${request.callingAppInfo.packageName}"
+                )
+                return
+            } catch (e: IllegalArgumentException) {
+                finishWithError("Failed to parse trusted apps list: ${e.message}")
+                return
+            }
 
         val requestJson =
             try {
@@ -128,9 +129,7 @@ class CreatePasskeyActivity : Activity() {
                     } ?: continue
 
                 if (existing.rpId == passkeyData.rpId) {
-                    finishWithError(
-                        "A passkey matching excludeCredentials already exists for this RP"
-                    )
+                    finishWithError("Passkey matching excludeCredentials already exists for the RP")
                     return
                 }
             }
@@ -248,6 +247,19 @@ class CreatePasskeyActivity : Activity() {
                 return
             }
 
+        val clientDataJson =
+            WebAuthnCommon.buildClientDataJson(
+                callingAppInfo = request.callingAppInfo,
+                privilegedOrigin = privilegedOrigin,
+                type = "webauthn.create",
+                challenge = requestJson.optString("challenge")
+            )
+        val clientDataJsonB64 =
+            Base64.encodeToString(
+                clientDataJson.toByteArray(Charsets.UTF_8),
+                WebAuthnCommon.WEBAUTHN_BASE64_FLAGS
+            )
+
         // Construct Final WebAuthn JSON
         val responseJson =
             try {
@@ -265,7 +277,7 @@ class CreatePasskeyActivity : Activity() {
                         put(
                             "response",
                             JSONObject().apply {
-                                put("clientDataJSON", WebAuthnCommon.DUMMY_CLIENT_DATA_JSON_B64)
+                                put("clientDataJSON", clientDataJsonB64)
                                 put(
                                     "attestationObject",
                                     Base64.encodeToString(
@@ -300,25 +312,9 @@ class CreatePasskeyActivity : Activity() {
 
         // Replace any existing passkey for (rpId, userId). Per CTAP2 §6.1.2, a new
         // discoverable credential for the same (rp.id, user.id) supersedes the old one
-        val victims =
-            prefs.all
-                .filter { (key, _) -> WebAuthnCommon.isCredentialId(key) }
-                .mapNotNull { (key, value) ->
-                    val json = value as? String ?: return@mapNotNull null
-                    val data =
-                        runCatching { PasskeyData.fromJsonString(json) }.getOrNull()
-                            ?: return@mapNotNull null
-                    if (data.rpId == passkeyData.rpId &&
-                        data.userId == passkeyData.userId
-                    ) {
-                        key
-                    } else {
-                        null
-                    }
-                }
-        for (alias in victims) {
-            WebAuthnCommon.cleanupPasskey(this, alias)
-        }
+        WebAuthnCommon.loadPasskeys(this)
+            .filter { it.rpId == passkeyData.rpId && it.userId == passkeyData.userId }
+            .forEach { WebAuthnCommon.cleanupPasskey(this, it.keyAlias) }
 
         // Passkeys are tracked in SharedPreferences by their keyAlias
         prefs.edit { putString(passkeyData.keyAlias, passkeyData.toJsonString()) }

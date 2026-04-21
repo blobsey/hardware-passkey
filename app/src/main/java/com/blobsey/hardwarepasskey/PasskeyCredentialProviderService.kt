@@ -87,16 +87,7 @@ class PasskeyCredentialProviderService : CredentialProviderService() {
             GetCredentialException
             >
     ) {
-        val prefs = getSharedPreferences(WebAuthnCommon.SHARED_PREFS_KEY_PASSKEYS, MODE_PRIVATE)
-
-        val passkeys: List<Pair<String, PasskeyData>> =
-            prefs.all.entries
-                .filter { WebAuthnCommon.isCredentialId(it.key) }
-                .mapNotNull { entry ->
-                    runCatching { PasskeyData.fromJsonString(entry.value as String) }
-                        .getOrNull()
-                        ?.let { entry.key to it }
-                }
+        val passkeys = WebAuthnCommon.loadPasskeys(this)
 
         val credentialEntries =
             request.beginGetCredentialOptions
@@ -109,17 +100,17 @@ class PasskeyCredentialProviderService : CredentialProviderService() {
                             ?: return@flatMap emptyList()
 
                     passkeys
-                        .filter { (_, data) -> data.rpId == rpId }
-                        .map { (keyAlias, data) ->
+                        .filter { it.rpId == rpId }
+                        .map { data ->
                             val intent =
                                 Intent(this, GetPasskeyActivity::class.java).apply {
                                     setPackage(packageName)
-                                    putExtra("keyAlias", keyAlias)
+                                    putExtra("keyAlias", data.keyAlias)
                                 }
                             val pendingIntent =
                                 PendingIntent.getActivity(
                                     this,
-                                    keyAlias.hashCode(),
+                                    data.keyAlias.hashCode(),
                                     intent,
                                     PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                                 )

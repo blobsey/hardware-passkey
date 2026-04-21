@@ -10,6 +10,7 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.KeyStore
 import java.security.MessageDigest
+import org.json.JSONObject
 
 object WebAuthnCommon {
     /** Key into SharedPreferences for passkeys */
@@ -135,15 +136,55 @@ object WebAuthnCommon {
     /**
      * Verifies the caller against the trusted allowlist ([R.raw.apps]).
      *
-     * @return The origin if trusted and requested by a privileged app, or null if it's a regular trusted app.
+     * @return The origin if trusted and requested by a privileged app, or null for native-apps. The
+     * null has ramifications for clientDataJson construction, see [buildClientDataJson]
      * @throws IllegalStateException If the caller is untrusted.
      * @throws IllegalArgumentException If the JSON allowlist is malformed.
      */
-    fun verifyCaller(context: Context, callingAppInfo: CallingAppInfo): String? {
+    fun verifyAndGetOrigin(context: Context, callingAppInfo: CallingAppInfo): String? {
         val appsJsonStream = context.resources.openRawResource(R.raw.apps)
         val appsJsonString = java.io.InputStreamReader(appsJsonStream).use { it.readText() }
         return callingAppInfo.getOrigin(appsJsonString)
     }
+
+    /**
+     * Builds a WebAuthn `clientDataJSON` payload for the given ceremony. Privileged browser
+     * callers carry a real web origin in [privilegedOrigin]; native-app callers pass null and we
+     * synthesise `android:apk-key-hash:<base64url(SHA-256(signing cert))>` plus the
+     * `androidPackageName` field. Callers are responsible for base64url-encoding and, in
+     * assertion flows, hashing the returned string themselves.
+     *
+     * Ref: https://developer.android.com/identity/sign-in/credential-provider
+     */
+    fun buildClientDataJson(
+        callingAppInfo: CallingAppInfo,
+        privilegedOrigin: String?,
+        type: String,
+        challenge: String
+    ): String = JSONObject().apply {
+        put("type", type)
+        put("challenge", challenge)
+        if (privilegedOrigin != null) {
+            put("origin", privilegedOrigin)
+        } else {
+            val origin = MessageDigest.getInstance("SHA-256")
+                .digest(callingAppInfo.signingInfo.apkContentsSigners[0].toByteArray())
+                .let { "android:apk-key-hash:${Base64.encodeToString(it, WEBAUTHN_BASE64_FLAGS)}" }
+            put("origin", origin)
+            put("androidPackageName", callingAppInfo.packageName)
+        }
+    }.toString()
+
+    /**
+     * Returns every stored passkey. Entries that fail to parse are silently skipped.
+     * Callers apply their own filtering/sorting as needed.
+     */
+    fun loadPasskeys(context: Context): List<PasskeyData> =
+        context.getSharedPreferences(SHARED_PREFS_KEY_PASSKEYS, MODE_PRIVATE).all.entries
+            .filter { isCredentialId(it.key) }
+            .mapNotNull {
+                runCatching { PasskeyData.fromJsonString(it.value as String) }.getOrNull()
+            }
 
     /**
      * Updates the [PasskeyData.lastUsedAt] timestamp for the given [keyAlias].

@@ -1,6 +1,5 @@
 package com.blobsey.hardwarepasskey
 
-import android.content.Context
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -47,23 +46,6 @@ private fun formatRelativeTime(epochMillis: Long): String = DateUtils
         DateUtils.MINUTE_IN_MILLIS,
         DateUtils.FORMAT_ABBREV_RELATIVE
     ).toString()
-
-private fun loadPasskeys(context: Context): List<PasskeyData> {
-    val prefs =
-        context.getSharedPreferences(
-            WebAuthnCommon.SHARED_PREFS_KEY_PASSKEYS,
-            Context.MODE_PRIVATE
-        )
-    return prefs.all.entries
-        .filter { WebAuthnCommon.isCredentialId(it.key) }
-        .mapNotNull { entry ->
-            try {
-                PasskeyData.fromJsonString(entry.value as String)
-            } catch (_: Exception) {
-                null
-            }
-        }.sortedByDescending { it.lastUsedAt ?: it.createdAt }
-}
 
 @Composable
 private fun PasskeyCard(passkey: PasskeyData, onDeleted: () -> Unit) {
@@ -218,7 +200,8 @@ fun PasskeyListScreen(modifier: Modifier = Modifier) {
 
     val passkeys: List<PasskeyData> =
         remember(refreshKey, tick) {
-            loadPasskeys(context)
+            WebAuthnCommon.loadPasskeys(context)
+                .sortedByDescending { it.lastUsedAt ?: it.createdAt }
         }
 
     if (passkeys.isEmpty()) {

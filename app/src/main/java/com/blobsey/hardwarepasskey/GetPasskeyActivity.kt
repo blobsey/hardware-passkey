@@ -15,6 +15,7 @@ import androidx.credentials.PublicKeyCredential
 import androidx.credentials.exceptions.GetCredentialUnknownException
 import androidx.credentials.provider.PendingIntentHandler
 import java.security.KeyStore
+import java.security.MessageDigest
 import java.security.PrivateKey
 import java.security.Signature
 import org.json.JSONObject
@@ -43,18 +44,21 @@ class GetPasskeyActivity : Activity() {
                 return
             }
 
-        // Verify the caller against the trusted allowlist
-        try {
-            WebAuthnCommon.verifyCaller(this, request.callingAppInfo)
-        } catch (_: IllegalStateException) {
-            finishWithError(
-                "Untrusted caller attempting to claim origin: ${request.callingAppInfo.packageName}"
-            )
-            return
-        } catch (e: IllegalArgumentException) {
-            finishWithError("Failed to parse trusted apps list: ${e.message}")
-            return
-        }
+        // Verify the caller against the trusted allowlist. Returns a web origin for privileged
+        // browser callers; null for unprivileged native-app callers (handled below when building
+        // clientDataJSON / clientDataHash).
+        val privilegedOrigin =
+            try {
+                WebAuthnCommon.verifyAndGetOrigin(this, request.callingAppInfo)
+            } catch (_: IllegalStateException) {
+                finishWithError(
+                    "Untrusted caller attempting to claim origin: ${request.callingAppInfo.packageName}"
+                )
+                return
+            } catch (e: IllegalArgumentException) {
+                finishWithError("Failed to parse trusted apps list: ${e.message}")
+                return
+            }
 
         // Try to find a passkey with the given keyAlias in SharedPreferences
         val passkeyDataJson =
@@ -128,13 +132,52 @@ class GetPasskeyActivity : Activity() {
                             return
                         }
 
-                    val clientDataHash =
+                    val option =
                         request.credentialOptions
                             .filterIsInstance<GetPublicKeyCredentialOption>()
-                            .firstOrNull()
-                            ?.clientDataHash ?: run {
-                            finishWithError("Client data hash missing or invalid request")
+                            .firstOrNull() ?: run {
+                            finishWithError("Missing GetPublicKeyCredentialOption")
                             return
+                        }
+
+                    // For privileged browser callers, the system already computed clientDataHash
+                    // from the browser's real clientDataJSON so use it as-is and return a
+                    // placeholder clientDataJSON. For non-privileged native-app callers, construct
+                    // our own clientDataJSON (with android:apk-key-hash origin) and sign over its
+                    // SHA-256; the RP verifies the signature against the returned clientDataJSON.
+                    val (clientDataHash, clientDataJsonB64) =
+                        if (privilegedOrigin != null) {
+                            val systemHash =
+                                option.clientDataHash ?: run {
+                                    finishWithError(
+                                        "Client data hash missing for privileged caller"
+                                    )
+                                    return
+                                }
+                            systemHash to WebAuthnCommon.DUMMY_CLIENT_DATA_JSON_B64
+                        } else {
+                            val challenge =
+                                runCatching {
+                                    JSONObject(option.requestJson).optString("challenge")
+                                }
+                                    .getOrNull()
+                                    ?.takeIf { it.isNotEmpty() } ?: run {
+                                    finishWithError("Challenge missing in GET requestJson")
+                                    return
+                                }
+                            val ourJson =
+                                WebAuthnCommon.buildClientDataJson(
+                                    callingAppInfo = request.callingAppInfo,
+                                    privilegedOrigin = null,
+                                    type = "webauthn.get",
+                                    challenge = challenge
+                                )
+                            val ourJsonBytes = ourJson.toByteArray(Charsets.UTF_8)
+                            val ourHash = MessageDigest.getInstance("SHA-256").digest(ourJsonBytes)
+                            ourHash to Base64.encodeToString(
+                                ourJsonBytes,
+                                WebAuthnCommon.WEBAUTHN_BASE64_FLAGS
+                            )
                         }
 
                     val signatureBytes =
@@ -170,10 +213,7 @@ class GetPasskeyActivity : Activity() {
                                     put(
                                         "response",
                                         JSONObject().apply {
-                                            put(
-                                                "clientDataJSON",
-                                                WebAuthnCommon.DUMMY_CLIENT_DATA_JSON_B64
-                                            )
+                                            put("clientDataJSON", clientDataJsonB64)
                                             put(
                                                 "authenticatorData",
                                                 Base64.encodeToString(
