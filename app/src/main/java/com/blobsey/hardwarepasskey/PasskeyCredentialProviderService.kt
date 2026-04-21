@@ -20,7 +20,16 @@ import androidx.credentials.provider.ProviderClearCredentialStateRequest
 import androidx.credentials.provider.PublicKeyCredentialEntry
 import org.json.JSONObject
 
+/**
+ * A credential provider to be registered with the Android Credential Manager that handles
+ * WebAuthn (passkey) requests
+ */
 class PasskeyCredentialProviderService : CredentialProviderService() {
+    /**
+     * Invoked when a calling app requests passkey creation via the Credential Manager, so the
+     * Android system's bottom sheet can show this app as a save-target. Advertises a single
+     * [CreateEntry] that launches [CreatePasskeyActivity] to perform the actual key generation
+     */
     override fun onBeginCreateCredentialRequest(
         request: BeginCreateCredentialRequest,
         cancellationSignal: CancellationSignal,
@@ -64,6 +73,12 @@ class PasskeyCredentialProviderService : CredentialProviderService() {
         private const val CREATE_REQUEST_CODE = 1
     }
 
+    /**
+     * Invoked when a calling app requests sign-in via the Credential Manager, so the Android
+     * system's bottom sheet can list passkeys this app holds for the requesting rpId. Advertises
+     * a [PublicKeyCredentialEntry] per match, which launch [GetPasskeyActivity] to produce the
+     * assertion
+     */
     override fun onBeginGetCredentialRequest(
         request: BeginGetCredentialRequest,
         cancellationSignal: CancellationSignal,
@@ -72,65 +87,63 @@ class PasskeyCredentialProviderService : CredentialProviderService() {
             GetCredentialException
             >
     ) {
-        val responseBuilder = BeginGetCredentialResponse.Builder()
         val prefs = getSharedPreferences(WebAuthnCommon.SHARED_PREFS_KEY_PASSKEYS, MODE_PRIVATE)
+
+        val passkeys: List<Pair<String, PasskeyData>> =
+            prefs.all.entries
+                .filter { WebAuthnCommon.isCredentialId(it.key) }
+                .mapNotNull { entry ->
+                    runCatching { PasskeyData.fromJsonString(entry.value as String) }
+                        .getOrNull()
+                        ?.let { entry.key to it }
+                }
 
         val credentialEntries =
             request.beginGetCredentialOptions
                 .filterIsInstance<BeginGetPublicKeyCredentialOption>()
                 .flatMap { option ->
-                    val rpId = runCatching { JSONObject(option.requestJson).optString("rpId") }
-                        .getOrDefault("")
+                    val rpId =
+                        runCatching { JSONObject(option.requestJson).optString("rpId") }
+                            .getOrNull()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?: return@flatMap emptyList()
 
-                    if (rpId.isEmpty()) return@flatMap emptyList()
-
-                    prefs.all.entries
-                        .filter { WebAuthnCommon.isCredentialId(it.key) }
-                        .mapNotNull { entry ->
-                            val passkeyData =
-                                try {
-                                    PasskeyData.fromJsonString(entry.value as String)
-                                } catch (_: Exception) {
-                                    return@mapNotNull null // Ignore invalid JSON
-                                }
-
-                            if (passkeyData.rpId != rpId) return@mapNotNull null
-
-                            val keyAlias = entry.key
-                            val userName = passkeyData.userName
-                            val userDisplayName = passkeyData.userDisplayName
-
+                    passkeys
+                        .filter { (_, data) -> data.rpId == rpId }
+                        .map { (keyAlias, data) ->
                             val intent =
-                                Intent(
-                                    this@PasskeyCredentialProviderService,
-                                    GetPasskeyActivity::class.java
-                                ).apply {
+                                Intent(this, GetPasskeyActivity::class.java).apply {
                                     setPackage(packageName)
                                     putExtra("keyAlias", keyAlias)
                                 }
                             val pendingIntent =
                                 PendingIntent.getActivity(
-                                    this@PasskeyCredentialProviderService,
+                                    this,
                                     keyAlias.hashCode(),
                                     intent,
                                     PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                                 )
 
                             PublicKeyCredentialEntry(
-                                context = this@PasskeyCredentialProviderService,
-                                username = userName,
+                                context = this,
+                                username = data.userName,
                                 pendingIntent = pendingIntent,
                                 beginGetPublicKeyCredentialOption = option,
-                                displayName = userDisplayName
+                                displayName = data.userDisplayName
                             )
                         }
                 }
 
+        val responseBuilder = BeginGetCredentialResponse.Builder()
         credentialEntries.forEach { responseBuilder.addCredentialEntry(it) }
-
         callback.onResult(responseBuilder.build())
     }
 
+    /**
+     * Invoked when a calling app asks the Credential Manager to clear any cached credential state
+     * (e.g. on user sign-out). No-op here because passkeys live only in the Android Keystore and
+     * [android.content.SharedPreferences], i.e. nothing per-caller to forget
+     */
     override fun onClearCredentialStateRequest(
         request: ProviderClearCredentialStateRequest,
         cancellationSignal: CancellationSignal,

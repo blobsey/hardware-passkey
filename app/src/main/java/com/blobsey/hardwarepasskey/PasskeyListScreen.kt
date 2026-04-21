@@ -69,9 +69,7 @@ private fun loadPasskeys(context: Context): List<PasskeyData> {
 private fun PasskeyCard(passkey: PasskeyData, onDeleted: () -> Unit) {
     val context = LocalContext.current
 
-    // Delete flow: idle → confirm dialog → type-to-confirm dialog
-    var showConfirmDialog by remember { mutableStateOf(false) }
-    var showTypeToConfirmDialog by remember { mutableStateOf(false) }
+    val showTypeToConfirmDialog = remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -126,17 +124,14 @@ private fun PasskeyCard(passkey: PasskeyData, onDeleted: () -> Unit) {
                 }
                 Text(
                     text =
-                    if (passkey.lastUsedAt != null) {
-                        "Last used: ${formatRelativeTime(passkey.lastUsedAt)}"
-                    } else {
-                        "Never used"
-                    },
+                    passkey.lastUsedAt?.let { "Last used: ${formatRelativeTime(it)}" }
+                        ?: "Never used",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            IconButton(onClick = { showConfirmDialog = true }) {
+            IconButton(onClick = { showTypeToConfirmDialog.value = true }) {
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "Delete passkey",
@@ -146,55 +141,13 @@ private fun PasskeyCard(passkey: PasskeyData, onDeleted: () -> Unit) {
         }
     }
 
-    // "Are you sure?" dialog
-    if (showConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showConfirmDialog = false },
-            icon = {
-                Icon(
-                    Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error
-                )
-            },
-            title = { Text("Delete passkey?") },
-            text = {
-                Text(
-                    "You are about to delete the passkey for " +
-                        "\"${passkey.userName}\" on ${passkey.rpId}.\n\n" +
-                        "This action is permanent and cannot be undone. " +
-                        "You will lose access to this account unless you have another sign-in method."
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showConfirmDialog = false
-                        showTypeToConfirmDialog = true
-                    },
-                    colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("Continue")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showConfirmDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
     // Type the site name to confirm
-    if (showTypeToConfirmDialog) {
+    if (showTypeToConfirmDialog.value) {
         var typedText by remember { mutableStateOf("") }
         val matches = typedText.trim().equals(passkey.rpId, ignoreCase = true)
 
         AlertDialog(
-            onDismissRequest = { showTypeToConfirmDialog = false },
+            onDismissRequest = { showTypeToConfirmDialog.value = false },
             icon = {
                 Icon(
                     Icons.Default.Warning,
@@ -227,7 +180,6 @@ private fun PasskeyCard(passkey: PasskeyData, onDeleted: () -> Unit) {
                 Button(
                     onClick = {
                         WebAuthnCommon.cleanupPasskey(context, passkey.keyAlias)
-                        showTypeToConfirmDialog = false
                         onDeleted()
                     },
                     enabled = matches,
@@ -240,7 +192,7 @@ private fun PasskeyCard(passkey: PasskeyData, onDeleted: () -> Unit) {
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showTypeToConfirmDialog = false }) {
+                TextButton(onClick = { showTypeToConfirmDialog.value = false }) {
                     Text("Cancel")
                 }
             }
@@ -252,7 +204,7 @@ private fun PasskeyCard(passkey: PasskeyData, onDeleted: () -> Unit) {
 fun PasskeyListScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
 
-    // Refresh trigger – bumped after deletions
+    // Refresh trigger bumped after deletions
     var refreshKey by remember { mutableLongStateOf(0L) }
 
     // Also poll periodically so newly created passkeys appear automatically
