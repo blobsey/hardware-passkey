@@ -1,4 +1,4 @@
-# Hardware Passkey
+# <img src="app/src/main/res/mipmap-hdpi/ic_launcher_round.webp" width="48" align="top"> Hardware Passkey
 
 Minimal Android credential provider that stores WebAuthn passkeys in the Android Keystore
 
