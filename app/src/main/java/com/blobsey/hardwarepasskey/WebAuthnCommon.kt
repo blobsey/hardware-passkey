@@ -177,7 +177,6 @@ object WebAuthnCommon {
 
     /**
      * Returns every stored passkey. Entries that fail to parse are silently skipped.
-     * Callers apply their own filtering/sorting as needed.
      */
     fun loadPasskeys(context: Context): List<PasskeyData> =
         context.getSharedPreferences(SHARED_PREFS_KEY_PASSKEYS, MODE_PRIVATE).all.entries
