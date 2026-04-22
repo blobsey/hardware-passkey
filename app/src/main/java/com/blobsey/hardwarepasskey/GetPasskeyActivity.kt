@@ -99,10 +99,8 @@ class GetPasskeyActivity : Activity() {
                 .Builder(this)
                 .setTitle("Use your screen lock")
                 .setSubtitle("Sign in to ${passkeyData.rpId}")
-                .setAllowedAuthenticators(
-                    BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                        BiometricManager.Authenticators.DEVICE_CREDENTIAL
-                ).build()
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                .build()
 
         promptInfo.authenticate(
             BiometricPrompt.CryptoObject(signature),

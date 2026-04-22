@@ -135,117 +135,107 @@ class CreatePasskeyActivity : Activity() {
             }
         }
 
-        val keyPair =
-            try {
-                val kpg =
-                    KeyPairGenerator.getInstance(
-                        KeyProperties.KEY_ALGORITHM_EC,
-                        "AndroidKeyStore"
+        val keyPair = try {
+            val parameterSpec =
+                KeyGenParameterSpec
+                    .Builder(passkeyData.keyAlias, KeyProperties.PURPOSE_SIGN)
+                    .setDigests(KeyProperties.DIGEST_SHA256)
+                    .setUserAuthenticationRequired(true)
+                    .setUserAuthenticationParameters(
+                        0,
+                        // Bind device credential so biometric enrollment doesn't invalidate key
+                        KeyProperties.AUTH_BIOMETRIC_STRONG or
+                            KeyProperties.AUTH_DEVICE_CREDENTIAL
                     )
-                val parameterSpec =
-                    KeyGenParameterSpec
-                        .Builder(
-                            passkeyData.keyAlias,
-                            KeyProperties.PURPOSE_SIGN
-                        ).run {
-                            setDigests(KeyProperties.DIGEST_SHA256)
-                            setUserAuthenticationRequired(true)
-                            // Bind to lockscreen credential so biometric changes don't invalidate
-                            setUserAuthenticationParameters(
-                                0,
-                                KeyProperties.AUTH_BIOMETRIC_STRONG or
-                                    KeyProperties.AUTH_DEVICE_CREDENTIAL
-                            )
-                            build()
-                        }
-                kpg.initialize(parameterSpec)
-                kpg.generateKeyPair()
-            } catch (e: Exception) {
-                WebAuthnCommon.cleanupPasskey(this, passkeyData.keyAlias)
-                finishWithError("Failed to generate hardware keys: ${e.message}")
-                return
-            }
+                    .setUnlockedDeviceRequired(true)
+                    .build()
+            KeyPairGenerator
+                .getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore")
+                .apply { initialize(parameterSpec) }
+                .generateKeyPair()
+        } catch (e: Exception) {
+            WebAuthnCommon.cleanupPasskey(this, passkeyData.keyAlias)
+            finishWithError("Failed to generate hardware keys: ${e.message}")
+            return
+        }
 
         // Convert Android EC Public Key to COSE format
-        val coseKeyBytes =
-            try {
-                val ecPublicKey = keyPair.public as ECPublicKey
-                val x = ecPublicKey.w.affineX.toBytesPadded(32)
-                val y = ecPublicKey.w.affineY.toBytesPadded(32)
+        val coseKeyBytes = try {
+            val ecPublicKey = keyPair.public as ECPublicKey
+            val x = ecPublicKey.w.affineX.toBytesPadded(32)
+            val y = ecPublicKey.w.affineY.toBytesPadded(32)
 
-                // Do not reorder these puts! Keys must be CTAP2 Canonical CBOR encoding
-                // Reference: https://www.w3.org/TR/webauthn-2/#sctn-encoded-credPubKey-examples
-                val coseKey =
-                    CborBuilder()
-                        .addMap()
-                        .put(
-                            WebAuthnCommon.COSE_KEY_KTY.toLong(),
-                            WebAuthnCommon.COSE_KTY_EC2.toLong()
-                        )
-                        .put(
-                            WebAuthnCommon.COSE_KEY_ALG.toLong(),
-                            WebAuthnCommon.COSE_ALG_ES256.toLong()
-                        )
-                        .put(
-                            WebAuthnCommon.COSE_KEY_EC2_CRV.toLong(),
-                            WebAuthnCommon.COSE_CRV_P256.toLong()
-                        )
-                        .put(WebAuthnCommon.COSE_KEY_EC2_X.toLong(), x)
-                        .put(WebAuthnCommon.COSE_KEY_EC2_Y.toLong(), y)
-                        .end()
-                        .build()
-                ByteArrayOutputStream()
-                    .apply {
-                        CborEncoder(this).encode(coseKey)
-                    }.toByteArray()
-            } catch (e: Exception) {
-                WebAuthnCommon.cleanupPasskey(this, passkeyData.keyAlias)
-                finishWithError("Failed to encode COSE key: ${e.message}")
-                return
-            }
+            // Do not reorder these puts! Keys must be CTAP2 Canonical CBOR encoding
+            // Reference: https://www.w3.org/TR/webauthn-2/#sctn-encoded-credPubKey-examples
+            val coseKey =
+                CborBuilder()
+                    .addMap()
+                    .put(
+                        WebAuthnCommon.COSE_KEY_KTY.toLong(),
+                        WebAuthnCommon.COSE_KTY_EC2.toLong()
+                    )
+                    .put(
+                        WebAuthnCommon.COSE_KEY_ALG.toLong(),
+                        WebAuthnCommon.COSE_ALG_ES256.toLong()
+                    )
+                    .put(
+                        WebAuthnCommon.COSE_KEY_EC2_CRV.toLong(),
+                        WebAuthnCommon.COSE_CRV_P256.toLong()
+                    )
+                    .put(WebAuthnCommon.COSE_KEY_EC2_X.toLong(), x)
+                    .put(WebAuthnCommon.COSE_KEY_EC2_Y.toLong(), y)
+                    .end()
+                    .build()
+            ByteArrayOutputStream()
+                .apply {
+                    CborEncoder(this).encode(coseKey)
+                }.toByteArray()
+        } catch (e: Exception) {
+            WebAuthnCommon.cleanupPasskey(this, passkeyData.keyAlias)
+            finishWithError("Failed to encode COSE key: ${e.message}")
+            return
+        }
 
         val credentialId = passkeyData.keyAlias.toByteArray(Charsets.UTF_8)
-        val authData =
-            try {
-                WebAuthnCommon.buildAuthData(
-                    rpId = passkeyData.rpId,
-                    flags = WebAuthnCommon.AUTH_DATA_FLAG_UP or WebAuthnCommon.AUTH_DATA_FLAG_AT,
-                    attestedCredentialData =
-                    WebAuthnCommon.AttestedCredentialDataParams(
-                        credentialId = credentialId,
-                        coseKeyBytes = coseKeyBytes
-                    )
+        val authData = try {
+            WebAuthnCommon.buildAuthData(
+                rpId = passkeyData.rpId,
+                flags = WebAuthnCommon.AUTH_DATA_FLAG_UP or WebAuthnCommon.AUTH_DATA_FLAG_AT,
+                attestedCredentialData =
+                WebAuthnCommon.AttestedCredentialDataParams(
+                    credentialId = credentialId,
+                    coseKeyBytes = coseKeyBytes
                 )
-            } catch (e: Exception) {
-                WebAuthnCommon.cleanupPasskey(this, passkeyData.keyAlias)
-                finishWithError("Failed to build authData: ${e.message}")
-                return
-            }
+            )
+        } catch (e: Exception) {
+            WebAuthnCommon.cleanupPasskey(this, passkeyData.keyAlias)
+            finishWithError("Failed to build authData: ${e.message}")
+            return
+        }
 
-        // Build Attestation Object (CBOR)
-        val attestationObjectBytes =
-            try {
-                // Do not reorder these puts! WebAuthn expects CTAP2 Canonical CBOR encoding
-                // Ref: https://www.w3.org/TR/webauthn-2/#sctn-attestation
-                val attObj =
-                    CborBuilder()
-                        .addMap()
-                        .put("fmt", "none")
-                        .putMap("attStmt")
-                        .end()
-                        .put("authData", authData)
-                        .end()
-                        .build()
+        // Build Attestation Object
+        val attestationObjectBytes = try {
+            // Do not reorder these puts! WebAuthn expects CTAP2 Canonical CBOR encoding
+            // Ref: https://www.w3.org/TR/webauthn-2/#sctn-attestation
+            val attObj =
+                CborBuilder()
+                    .addMap()
+                    .put("fmt", "none")
+                    .putMap("attStmt")
+                    .end()
+                    .put("authData", authData)
+                    .end()
+                    .build()
 
-                ByteArrayOutputStream()
-                    .apply {
-                        CborEncoder(this).encode(attObj)
-                    }.toByteArray()
-            } catch (e: Exception) {
-                WebAuthnCommon.cleanupPasskey(this, passkeyData.keyAlias)
-                finishWithError("Failed to encode attestation object: ${e.message}")
-                return
-            }
+            ByteArrayOutputStream()
+                .apply {
+                    CborEncoder(this).encode(attObj)
+                }.toByteArray()
+        } catch (e: Exception) {
+            WebAuthnCommon.cleanupPasskey(this, passkeyData.keyAlias)
+            finishWithError("Failed to encode attestation object: ${e.message}")
+            return
+        }
 
         val clientDataJson =
             WebAuthnCommon.buildClientDataJson(
@@ -261,54 +251,53 @@ class CreatePasskeyActivity : Activity() {
             )
 
         // Construct Final WebAuthn JSON
-        val responseJson =
-            try {
-                JSONObject()
-                    .apply {
-                        val b64CredId = Base64.encodeToString(
-                            credentialId,
-                            WebAuthnCommon.WEBAUTHN_BASE64_FLAGS
-                        )
-                        put("id", b64CredId)
-                        put("rawId", b64CredId)
-                        put("type", "public-key")
-                        put("authenticatorAttachment", "platform")
-                        put("clientExtensionResults", JSONObject()) // Required by Chromium
-                        put(
-                            "response",
-                            JSONObject().apply {
-                                put("clientDataJSON", clientDataJsonB64)
-                                put(
-                                    "attestationObject",
-                                    Base64.encodeToString(
-                                        attestationObjectBytes,
-                                        WebAuthnCommon.WEBAUTHN_BASE64_FLAGS
-                                    )
+        val responseJson = try {
+            JSONObject()
+                .apply {
+                    val b64CredId = Base64.encodeToString(
+                        credentialId,
+                        WebAuthnCommon.WEBAUTHN_BASE64_FLAGS
+                    )
+                    put("id", b64CredId)
+                    put("rawId", b64CredId)
+                    put("type", "public-key")
+                    put("authenticatorAttachment", "platform")
+                    put("clientExtensionResults", JSONObject()) // Required by Chromium
+                    put(
+                        "response",
+                        JSONObject().apply {
+                            put("clientDataJSON", clientDataJsonB64)
+                            put(
+                                "attestationObject",
+                                Base64.encodeToString(
+                                    attestationObjectBytes,
+                                    WebAuthnCommon.WEBAUTHN_BASE64_FLAGS
                                 )
-                                put("transports", JSONArray(listOf("internal")))
-                                put("publicKeyAlgorithm", WebAuthnCommon.COSE_ALG_ES256)
-                                put(
-                                    "publicKey",
-                                    Base64.encodeToString(
-                                        keyPair.public.encoded,
-                                        WebAuthnCommon.WEBAUTHN_BASE64_FLAGS
-                                    )
+                            )
+                            put("transports", JSONArray(listOf("internal")))
+                            put("publicKeyAlgorithm", WebAuthnCommon.COSE_ALG_ES256)
+                            put(
+                                "publicKey",
+                                Base64.encodeToString(
+                                    keyPair.public.encoded,
+                                    WebAuthnCommon.WEBAUTHN_BASE64_FLAGS
                                 )
-                                put(
-                                    "authenticatorData",
-                                    Base64.encodeToString(
-                                        authData,
-                                        WebAuthnCommon.WEBAUTHN_BASE64_FLAGS
-                                    )
+                            )
+                            put(
+                                "authenticatorData",
+                                Base64.encodeToString(
+                                    authData,
+                                    WebAuthnCommon.WEBAUTHN_BASE64_FLAGS
                                 )
-                            }
-                        )
-                    }.toString()
-            } catch (e: Exception) {
-                WebAuthnCommon.cleanupPasskey(this, passkeyData.keyAlias)
-                finishWithError("Failed to build response JSON: ${e.message}")
-                return
-            }
+                            )
+                        }
+                    )
+                }.toString()
+        } catch (e: Exception) {
+            WebAuthnCommon.cleanupPasskey(this, passkeyData.keyAlias)
+            finishWithError("Failed to build response JSON: ${e.message}")
+            return
+        }
 
         // Replace any existing passkey for (rpId, userId). Per CTAP2 §6.1.2, a new
         // discoverable credential for the same (rp.id, user.id) supersedes the old one
