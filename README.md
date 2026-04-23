@@ -1,6 +1,6 @@
 # <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp" alt="" height="48" align="texttop"> Hardware Passkey
 
-Minimal Android credential provider that stores WebAuthn passkeys in the Android Keystore
+Credential provider that generates passkey private keys in the Android Keystore
 
 ## Requirements
 
@@ -8,7 +8,7 @@ Android 14 (API 34) or higher. Earlier versions don't have the `CredentialProvid
 
 ## Building
 
-Debug build (uses Android Studio's default debug keystore):
+Debug build:
 
 ```bash
 ./gradlew :app:assembleDebug
