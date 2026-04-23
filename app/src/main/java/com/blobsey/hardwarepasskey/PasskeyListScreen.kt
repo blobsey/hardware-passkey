@@ -3,25 +3,28 @@ package com.blobsey.hardwarepasskey
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,10 +36,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.blobsey.hardwarepasskey.ui.theme.DeleteRed
 import kotlinx.coroutines.delay
 
 private fun formatRelativeTime(epochMillis: Long): String = DateUtils
@@ -48,77 +53,103 @@ private fun formatRelativeTime(epochMillis: Long): String = DateUtils
     ).toString()
 
 @Composable
-private fun PasskeyCard(passkey: PasskeyData, onDeleted: () -> Unit) {
+private fun DetailRow(label: String, value: String) {
+    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PasskeyListItem(passkey: PasskeyData, onDeleted: () -> Unit) {
     val context = LocalContext.current
 
+    val showSheet = remember { mutableStateOf(false) }
     val showTypeToConfirmDialog = remember { mutableStateOf(false) }
 
-    Card(
+    Surface(
+        onClick = { showSheet.value = true },
         modifier = Modifier.fillMaxWidth(),
-        colors =
-        CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer
     ) {
-        Row(
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
+        ListItem(
+            modifier = Modifier.padding(4.dp),
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            headlineContent = {
                 Text(
                     text = passkey.rpId,
-                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = passkey.userName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (passkey.userDisplayName != passkey.userName) {
+            },
+            supportingContent = {
+                Column {
                     Text(
                         text = passkey.userDisplayName,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = passkey.lastUsedAt
+                            ?.let { "Last used ${formatRelativeTime(it)}" }
+                            ?: "Never used",
+                        style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 6.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-
-                if (passkey.createdAt > 0) {
-                    Text(
-                        text = "Created: ${formatRelativeTime(passkey.createdAt)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Text(
-                    text =
-                    passkey.lastUsedAt?.let { "Last used: ${formatRelativeTime(it)}" }
-                        ?: "Never used",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
+        )
+    }
 
-            IconButton(onClick = { showTypeToConfirmDialog.value = true }) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete passkey",
-                    tint = MaterialTheme.colorScheme.error
+    if (showSheet.value) {
+        ModalBottomSheet(onDismissRequest = { showSheet.value = false }) {
+            Column(
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+            ) {
+                Text(
+                    text = passkey.rpId,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
                 )
+                Spacer(modifier = Modifier.size(16.dp))
+                DetailRow("Username", passkey.userName)
+                DetailRow("Display name", passkey.userDisplayName)
+                DetailRow("Created", formatRelativeTime(passkey.createdAt))
+                DetailRow(
+                    "Last used",
+                    passkey.lastUsedAt?.let { formatRelativeTime(it) } ?: "Never"
+                )
+                DetailRow("User ID", passkey.userId)
+                DetailRow("Key alias", passkey.keyAlias)
+                Spacer(modifier = Modifier.size(24.dp))
+                TextButton(
+                    onClick = {
+                        showSheet.value = false
+                        showTypeToConfirmDialog.value = true
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = DeleteRed,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null)
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text("Delete passkey")
+                }
             }
         }
     }
@@ -130,24 +161,14 @@ private fun PasskeyCard(passkey: PasskeyData, onDeleted: () -> Unit) {
 
         AlertDialog(
             onDismissRequest = { showTypeToConfirmDialog.value = false },
-            icon = {
-                Icon(
-                    Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error
-                )
-            },
             title = { Text("Confirm deletion") },
             text = {
                 Column {
-                    Text(
-                        "To confirm, type the site name exactly as shown below:\n"
-                    )
+                    Text("To confirm, type the site name exactly as shown below:")
                     Text(
                         text = passkey.rpId,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 12.dp)
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(12.dp)
                     )
                     OutlinedTextField(
                         value = typedText,
@@ -165,9 +186,9 @@ private fun PasskeyCard(passkey: PasskeyData, onDeleted: () -> Unit) {
                         onDeleted()
                     },
                     enabled = matches,
-                    colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
                     )
                 ) {
                     Text("Delete permanently")
@@ -227,14 +248,12 @@ fun PasskeyListScreen(modifier: Modifier = Modifier) {
         }
     } else {
         LazyColumn(
-            modifier =
-            modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             items(passkeys, key = { it.keyAlias }) { passkey ->
-                PasskeyCard(
+                PasskeyListItem(
                     passkey = passkey,
                     onDeleted = { refreshKey++ }
                 )
